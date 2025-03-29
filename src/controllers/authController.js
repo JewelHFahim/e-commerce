@@ -18,19 +18,9 @@ async function handleRegistration(req, res, next) {
     }
 
     // Create new user
-    await User.create({
-      name,
-      email,
-      phone,
-      password,
-      address,
-      role: "customer",
-      orders: [],
-    });
+    await User.create({ name, email, phone, password, address, role: "customer" });
 
-    return res
-      .status(201)
-      .send({ status: true, message: "registration success" });
+    return res.status(201).send({ status: true, message: "registration success" });
   } catch (error) {
     next(error);
   }
@@ -72,13 +62,39 @@ async function handleLogin(req, res, next) {
 // User List
 async function handleUserList(req, res, next) {
   try {
-    const users = await User.find({}).select("-password");
+    const limit = parseInt(req.query.limit) || 10;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+    const sortBy = req.query.sortBy || "createdAt";
+    const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+    const totalUsers = await User.countDocuments({});
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    if (totalUsers === 0) {
+      return res
+        .status(404)
+        .json({ status: false, message: "No products found", data: [] });
+    }
+
+    const users = await User.find({})
+      .select("-password")
+      .sort({ [sortBy]: sortOrder })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
     if (users.length === 0) {
       return next(new AppError("No users found", 404));
     }
+
     return res
       .status(200)
-      .json({ status: true, message: "User list retrieved", users });
+      .json({
+        status: true,
+        message: "User list retrieved",
+        data: { users, totalUsers, totalPages, currentPage: page },
+      });
   } catch (error) {
     next(error);
   }
@@ -101,7 +117,6 @@ async function handleGetSingleUser(req, res, next) {
   }
 }
 
-
 // Delete user
 async function handleDeleteUser(req, res, next) {
   try {
@@ -109,9 +124,7 @@ async function handleDeleteUser(req, res, next) {
 
     const user = await User.findByIdAndDelete(id);
 
-    if (!user) {
-      return next(new AppError("User not found", 404));
-    }
+    if (!user) return next(new AppError("User not found", 404));
 
     res.status(200).send({ status: true, message: "User deleted" });
   } catch (error) {
@@ -124,5 +137,5 @@ module.exports = {
   handleUserList,
   handleLogin,
   handleGetSingleUser,
-  handleDeleteUser
+  handleDeleteUser,
 };

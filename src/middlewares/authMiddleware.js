@@ -10,21 +10,20 @@ function checkTokenForAuthentication(tokenName) {
 
     const authValue = req.cookies[tokenName] || authHeader.split(" ")[1];
     if (!authValue) return next();
-
+    
     try {
       const user = verifyToken(authValue);
       req.user = user;
     } catch (error) {
-      res
-        .status(401)
-        .json({ status: false, message: "Invalid or Expired Token" });
+      res.status(401).json({ status: false, message: "Invalid or Expired Token" });
       next();
     }
-
     next();
   };
 }
 
+
+// Restrict user to specific roles
 function restrictUserTo(roles) {
   return (req, res, next) => {
     if (!req.user) {
