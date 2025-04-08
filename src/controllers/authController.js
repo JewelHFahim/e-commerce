@@ -18,9 +18,18 @@ async function handleRegistration(req, res, next) {
     }
 
     // Create new user
-    await User.create({ name, email, phone, password, address, role: "customer" });
+    await User.create({
+      name,
+      email,
+      phone,
+      password,
+      address,
+      role: "customer",
+    });
 
-    return res.status(201).send({ status: true, message: "registration success" });
+    return res
+      .status(201)
+      .send({ status: true, message: "registration success" });
   } catch (error) {
     next(error);
   }
@@ -88,13 +97,11 @@ async function handleUserList(req, res, next) {
       return next(new AppError("No users found", 404));
     }
 
-    return res
-      .status(200)
-      .json({
-        status: true,
-        message: "User list retrieved",
-        data: { users, totalUsers, totalPages, currentPage: page },
-      });
+    return res.status(200).json({
+      status: true,
+      message: "User list retrieved",
+      data: { users, totalUsers, totalPages, currentPage: page },
+    });
   } catch (error) {
     next(error);
   }
@@ -132,10 +139,20 @@ async function handleDeleteUser(req, res, next) {
   }
 }
 
+// Logout useer
+async function handleLogoutUser(req, res, next) {
+  try {
+    res.clearCookie("token").status(200).send({ status: true, message: "Logout success" });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   handleRegistration,
   handleUserList,
   handleLogin,
   handleGetSingleUser,
   handleDeleteUser,
+  handleLogoutUser,
 };

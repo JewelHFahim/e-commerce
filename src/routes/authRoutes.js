@@ -5,14 +5,17 @@ const {
   handleUserList,
   handleGetSingleUser,
   handleDeleteUser,
+  handleLogoutUser,
 } = require("../controllers/authController");
+const { restrictUserTo } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
 router.post("/auth/registration", handleRegistration);
 router.post("/auth/login", handleLogin);
-router.get("/", handleUserList);
+router.get("/", restrictUserTo(["admin"]), handleUserList);
 router.get("/:id", handleGetSingleUser);
-router.delete("/:id", handleDeleteUser);
+router.delete("/:id", restrictUserTo(["admin"]), handleDeleteUser);
+router.post("/logout", handleLogoutUser);
 
 module.exports = router;

@@ -2,15 +2,18 @@ const { verifyToken } = require("../service/jwtToken");
 
 // Check verified user or not
 function checkTokenForAuthentication(tokenName) {
+  if (!tokenName) {
+    throw new Error("Token name is required");
+  }
+
+  // Middleware to check token in cookies or authorization header
   return (req, res, next) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader || authHeader.startsWith("Bearer ")) {
-      return next();
-    }
 
-    const authValue = req.cookies[tokenName] || authHeader.split(" ")[1];
+    const authValue = req.cookies[tokenName] || authHeader?.split(" ")[1];
+
     if (!authValue) return next();
-    
+
     try {
       const user = verifyToken(authValue);
       req.user = user;
@@ -22,11 +25,12 @@ function checkTokenForAuthentication(tokenName) {
   };
 }
 
-
 // Restrict user to specific roles
 function restrictUserTo(roles) {
-  return (req, res, next) => {
+  return (req, res, next) => {    
+    console.log(req.user)
     if (!req.user) {
+      console.error("Login required: No user found in request object");
       return res.status(401).json({ status: false, message: "Login required" });
     }
     if (!roles.includes(req.user.role)) {
@@ -38,5 +42,5 @@ function restrictUserTo(roles) {
 
 module.exports = {
   checkTokenForAuthentication,
-  restrictUserTo
+  restrictUserTo,
 };
