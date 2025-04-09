@@ -58,9 +58,17 @@ async function handleGetSingleProduct(req, res, next) {
 
       const product = await Product.findById(id);
 
+      console.log(product?.category);
+
+      // Fetch similar products based on category
+      const similarProducts = await Product.find({ category: product?.category }).limit(4).lean();
+      if (similarProducts.length === 0) {
+        return res.status(404).json({ status: false, message: "No similar products found", data: [] });
+      }
+
       if (!product) return next(new AppError("Product not found", 404));
       
-      res.status(200).send({ status: true, message: "Product found", product });
+      res.status(200).send({ status: true, message: "Product found", product, similarProducts });
     } catch (error) {
       next(error);
     }
@@ -80,6 +88,8 @@ async function handleDeleteProduct(req, res, next) {
       next(error);
     }
   }
+
+
 
 
 module.exports = {
