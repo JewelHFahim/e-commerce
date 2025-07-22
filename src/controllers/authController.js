@@ -68,6 +68,50 @@ async function handleLogin(req, res, next) {
   }
 }
 
+// Update user
+async function handleUpdateUser(req, res){
+  try {
+    const { id } = req.params;
+
+    // if (!mongoose.Types.ObjectId.isValid(id)) {
+    //   return res.status(400).json({ status: false, message: "Invalid user ID" });
+    // }
+
+    const allowedFields = ["name", "email", "phone", "address"];
+    const updates = {};
+
+    for (let key of allowedFields) {
+      if (req.body[key]) {
+        updates[key] = req.body[key];
+      }
+    }
+
+    // Prevent password updates here
+    if (req.body.password) {
+      return res.status(400).json({ status: false, message: "Use /update-password to change password" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-password"); // never return password
+
+    if (!updatedUser) {
+      return res.status(404).json({ status: false, message: "User not found" });
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: "User updated successfully",
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update User Error:", error);
+    return res.status(500).json({ status: false, message: "Internal Server Error" });
+  }
+};
+
 // User List
 async function handleUserList(req, res, next) {
   try {
@@ -110,9 +154,13 @@ async function handleUserList(req, res, next) {
 // Single user
 async function handleGetSingleUser(req, res, next) {
   try {
-    const { id } = req.params;
+    const id = req.user._id ? req.user : req.params;
 
-    const user = await User.findById(id);
+    if (!id) {
+      return next(new AppError("User ID is required", 400));
+    }
+
+    const user = await User.findById(id).select("-password");
 
     if (!user) {
       return next(new AppError("User not found", 404));
@@ -150,6 +198,7 @@ async function handleLogoutUser(req, res, next) {
 
 module.exports = {
   handleRegistration,
+  handleUpdateUser,
   handleUserList,
   handleLogin,
   handleGetSingleUser,

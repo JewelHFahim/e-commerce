@@ -1,93 +1,95 @@
-
-const errorHandler = require("../middlewares/errorHandler");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 const AppError = require("../utils/AppError");
+const errorHandler = require("../middlewares/errorHandler");
+const Cart = require("../models/Cart");
+const { generateTrackingId } = require("../service/generateTrackingId");
 
-// Ordrer Controller
+
 async function handleCreateOrder(req, res, next) {
   try {
-    const userId = req.user?._id || req.body.userId;
+    const userId = req.user?._id;
+
+    const {
+      shippingAddress,
+      shippingCharge = 0,
+      isPaid = false,
+      paymentMethod = "Cash",
+    } = req.body;
+
+    console.log(req.body);
+
     if (!userId) {
       return next(new AppError("User ID is required.", 400));
     }
 
-    const {
-      orderItems,
-      shippingAddress,
-      shippingCharge = 70,
-      isPaid,
-      paymentMethod,
-      orderStatus,
-    } = req.body;
-
-    // Validate required fields
-    if (
-      !orderItems ||
-      orderItems.length === 0 ||
-      !shippingAddress?.address ||
-      !shippingAddress?.city
-    ) {
-      return next(new AppError("All fields are required.", 400));
+    if (!shippingAddress) {
+      return next(new AppError("Shipping address is required.", 400));
     }
 
-    let totalCost = shippingCharge;
+    const cart = await Cart.findOne({ user: userId }).populate(
+      "cartItems.product"
+    );
+
+    console.log(cart);
+
+    if (!cart || cart.cartItems.length === 0) {
+      return next(new AppError("Cart is empty", 400));
+    }
+
     const updatedOrderItems = [];
+    let totalCost = shippingCharge;
 
-    // Loop through each item to validate and calculate price
-    for (const item of orderItems) {
-      const productDetails = await Product.findById(item.product);
-      if (!productDetails) {
-        return next(new AppError(`Product not found: ${item.product}`, 404));
-      }
+    for (const item of cart.cartItems) {
+      const product = item.product;
 
-      // Check stock availability
-      if (productDetails.stockQuantity < item.quantity) {
+      if (!product) {
         return next(
-          new AppError(
-            `Not enough stock for product ${productDetails.name}`,
-            400
-          )
+          new AppError(`Product not found for ID: ${item.product}`, 404)
         );
       }
 
-      // Calculate total price dynamically
-      const totalPrice = item.quantity * productDetails.discountPrice;
+      if (product.stockQuantity < item.quantity) {
+        return next(new AppError(`Not enough stock for ${product.name}`, 400));
+      }
+
+      const totalPrice = item.quantity * product.discountPrice;
       totalCost += totalPrice;
 
-      // Reduce stock after order placement
-      productDetails.stockQuantity -= item.quantity;
-      await productDetails.save();
+      product.stockQuantity -= item.quantity;
 
-      // Store updated order items
+      await product.save();
+
       updatedOrderItems.push({
-        product: item.product,
-        size: item.size,
+        product: product._id,
         quantity: item.quantity,
+        size: item.size,
         totalPrice,
       });
     }
 
-    // Create new order
     const newOrder = await Order.create({
-      user: userId,
-      orderItems: updatedOrderItems,
-      shippingAddress,
-      shippingCharge,
+      isPaid,
       totalCost,
-      isPaid: isPaid || false,
-      paymentMethod: paymentMethod || "Cash",
-      orderStatus: orderStatus || "Pending",
+      user: userId,
+      paymentMethod,
+      shippingCharge,
+      shippingAddress,
+      trackingId: generateTrackingId(),
+      orderItems: updatedOrderItems,
     });
 
-    return res.status(201).json({
+    await Cart.deleteOne({ user: userId });
+
+    res.status(201).json({
       status: true,
       message: "Order created successfully",
       data: newOrder,
     });
   } catch (error) {
     console.error("Failed to create order:", error);
-    next(error);
+    // return next(errorHandler(error));
+    res.status(500).json({ status: false, message: "Somehting went wrong!" });
   }
 }
 
@@ -108,18 +110,17 @@ async function handleGetAllAdminOrders(req, res, next) {
   }
 }
 
-// Get all orders for user
+// Get all orders for single user
 async function handleGetUserOrders(req, res, next) {
   try {
-    const userId = req.user?._id || req.body.userId;
+    const userId = req.user?._id;
+
     if (!userId) {
       return next(new AppError("User ID is required.", 400));
     }
 
-    const orders = await Order.find({ user: userId }).populate(
-      "orderItems.product",
-      "name price"
-    );
+    const orders = await Order.find({ user: userId }).populate("orderItems.product", "name imageUrls");
+
     return res.status(200).json({
       status: true,
       message: "User orders fetched successfully",
@@ -135,13 +136,14 @@ async function handleGetUserOrders(req, res, next) {
 async function handleGetOrderById(req, res, next) {
   try {
     const orderId = req.params.id;
+
     if (!orderId) {
       return next(new AppError("Order ID is required.", 400));
     }
 
     const order = await Order.findById(orderId)
-      .populate("user", "name email")
-      .populate("orderItems.product", "name price");
+      .populate("user", "name email phone")
+      .populate("orderItems.product", "name discountPrice imageUrls");
     if (!order) {
       return next(new AppError("Order not found.", 404));
     }

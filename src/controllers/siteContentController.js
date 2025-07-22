@@ -15,8 +15,8 @@ async function handleGetSliders(req, res, next) {
 // Function create slider
 async function handleCreateSlider(req, res, next) {
   try {
-    const { title, description, imageUrl, link, order } = req.body;
-    const newSlider = await Slider.create({ title, description, imageUrl, link, order });
+    const { title, description, imageUrl, link, order, isActive } = req.body;
+    const newSlider = await Slider.create({ title, description, imageUrl, link, order, isActive });
     res.status(201).json(newSlider);
   } catch (error) {
     next(error);
@@ -28,8 +28,8 @@ async function handleCreateSlider(req, res, next) {
 async function handleUpdateSlider(req, res, next) {
   try {
     const { id } = req.params;
-    const { title, description, imageUrl, link, order  } = req.body;
-    const newSlider = await Slider.findByIdAndUpdate({_id: id},{ title, description, imageUrl, link, order  },{ new: true });
+    const { title, description, imageUrl, link, order, isActive  } = req.body;
+    const newSlider = await Slider.findByIdAndUpdate({_id: id},{ title, description, imageUrl, link, order, isActive  },{ new: true });
     res.status(201).json(newSlider);
   } catch (error) {
     next(error);

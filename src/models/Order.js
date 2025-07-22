@@ -14,12 +14,14 @@ const orderSchema = new mongoose.Schema(
     ],
 
     shippingAddress: {
+      name: { type: String, required: true },
       address: { type: String, required: true },
-      city: { type: String, required: true },
+      phone_number: { type: String, required: true },
     },
-    shippingCharge: {type: Number, required: true, default: 70},
-    totalCost: { type: Number, required: true },
     isPaid: { type: Boolean, default: false },
+    totalCost: { type: Number, required: true },
+    trackingId: { type: String, required: true, unique: true },
+    shippingCharge: {type: Number, required: true, default: 0},
     paymentMethod: { type: String, enum: ["Cash", "Card", "Online"], default: "Cash" },
     orderStatus: { type: String, enum: ["Pending", "Shipped", "Delivered"], default: "Pending" },
   },

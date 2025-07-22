@@ -6,6 +6,8 @@ const sliderSchema = new mongoose.Schema({
   imageUrl: String,
   link: String,
   order: Number,
+  isActive: { type: Boolean, default: true },
+  description: String,
 });
 
 const Slider = mongoose.model("slider", sliderSchema);
