@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
-const SECRET = "ecommerce@123";
+require("dotenv").config();
+
+const SECRET = process.env.JWT_SECRET || "ecommerce@123";
 
 function generateToken(user) {
   const payload = { _id: user._id, role: user.role };
@@ -9,8 +11,12 @@ function generateToken(user) {
 
 function verifyToken(token) {
   if (!token) return null;
-  const payload = jwt.verify(token, SECRET);
-  return payload;
+  try {
+    const payload = jwt.verify(token, SECRET);
+    return payload;
+  } catch (error) {
+    throw new Error("Invalid Token");
+  }
 }
 
 module.exports = {

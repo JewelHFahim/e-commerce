@@ -18,8 +18,7 @@ function checkTokenForAuthentication(tokenName) {
       const user = verifyToken(authValue);
       req.user = user;
     } catch (error) {
-      res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-      next();
+      console.log("❌ Token verification failed:", error.message);
     }
     next();
   };
@@ -27,7 +26,7 @@ function checkTokenForAuthentication(tokenName) {
 
 // Restrict user to specific roles
 function restrictUserTo(roles) {
-  return (req, res, next) => {    
+  return (req, res, next) => {
     console.log(req.user)
     if (!req.user) {
       console.error("Login required: No user found in request object");

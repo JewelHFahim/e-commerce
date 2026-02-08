@@ -7,7 +7,12 @@ async function handleGetCart(req, res, next) {
     const userId = req.user?._id;
 
     if (!userId) {
-      return next(new AppError("User not found", 404));
+      // Guest user - return empty cart
+      return res.status(200).json({
+        status: true,
+        message: "Guest cart",
+        data: { items: [], cartTotal: 0 }
+      });
     }
 
     const cart = await Cart.findOne({ user: userId }).populate({
@@ -20,17 +25,17 @@ async function handleGetCart(req, res, next) {
       return res.status(200).json({ status: true, message: "No cart found for this user", data: null });
     }
 
-    const cartItemsWithTotal = cart.cartItems.map((item)=>{
+    const cartItemsWithTotal = cart.cartItems.map((item) => {
       const itemTotal = item.quantity * item.product.discountPrice;
-      return { ...item.toObject(), itemTotal}
+      return { ...item.toObject(), itemTotal }
     })
 
-    const cartTotal = cartItemsWithTotal.reduce((sum, item) => sum + item.itemTotal,0);
+    const cartTotal = cartItemsWithTotal.reduce((sum, item) => sum + item.itemTotal, 0);
 
-    res.status(200).json({ 
-      status: true, 
-      message: "Cart fetched successfully",  
-      data: { cartItems: cartItemsWithTotal, cartTotal }, 
+    res.status(200).json({
+      status: true,
+      message: "Cart fetched successfully",
+      data: { cartItems: cartItemsWithTotal, cartTotal },
     });
 
   } catch (error) {
@@ -77,8 +82,8 @@ async function handleAddTocart(req, res, next) {
     });
 
     const cartTotal = cartItemsWithTotal.reduce((sum, item) => sum + item.itemTotal, 0);
-  
-    res.status(201).json({ 
+
+    res.status(201).json({
       status: true,
       message: "Product added to cart successfully",
       data: { items: cartItemsWithTotal, cartTotal },
@@ -105,13 +110,13 @@ async function handleSingleRemoveFromCart(req, res, next) {
 
     const index = cart.cartItems.findIndex((item) => (item.product.toString() === productId && item.size === size));
 
-    if(index === -1){
+    if (index === -1) {
       return next(new AppError("Item not found in cart", 404))
     }
 
-    if(cart.cartItems[index].quantity > 1){
+    if (cart.cartItems[index].quantity > 1) {
       cart.cartItems[index].quantity -= 1;
-    }else{
+    } else {
       cart.cartItems.splice(index, 1)
     }
 
@@ -124,7 +129,7 @@ async function handleSingleRemoveFromCart(req, res, next) {
 }
 
 // Remove item from cart
-async function handleRemoveItemFromCart(req, res, next){
+async function handleRemoveItemFromCart(req, res, next) {
   try {
     const userId = req.user._id;
     const { productId } = req.params;
@@ -133,7 +138,7 @@ async function handleRemoveItemFromCart(req, res, next){
       return next(new AppError("User not found", 404));
     }
 
-    if(!productId) {
+    if (!productId) {
       return next(new AppError("Product ID is required", 400));
     }
 
@@ -161,6 +166,9 @@ async function handleRemoveItemFromCart(req, res, next){
 // DELETE /api/cart/clear
 async function handleClearCart(req, res, next) {
   try {
+    if (!req.user || !req.user._id) {
+      return next(new AppError("User not found", 404));
+    }
     await Cart.findOneAndDelete({ user: req.user._id });
     res.status(200).json({ status: true, message: "Cart cleared" });
   } catch (error) {

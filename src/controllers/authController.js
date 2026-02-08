@@ -58,8 +58,8 @@ async function handleLogin(req, res, next) {
         .status(201)
         .send({ status: true, message: "Login success", token });
     } catch (authError) {
-      if (authError === "Password is inccorect") {
-        return next("Password is incorrect", 401);
+      if (authError === "Password is incorrect") {
+        return next(new AppError("Password is incorrect", 401));
       }
       throw authError;
     }
@@ -69,7 +69,7 @@ async function handleLogin(req, res, next) {
 }
 
 // Update user
-async function handleUpdateUser(req, res){
+async function handleUpdateUser(req, res) {
   try {
     const { id } = req.params;
 

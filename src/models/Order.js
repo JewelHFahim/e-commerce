@@ -21,8 +21,8 @@ const orderSchema = new mongoose.Schema(
     isPaid: { type: Boolean, default: false },
     totalCost: { type: Number, required: true },
     trackingId: { type: String, required: true, unique: true },
-    shippingCharge: {type: Number, required: true, default: 0},
-    paymentMethod: { type: String, enum: ["Cash", "Card", "Online"], default: "Cash" },
+    shippingCharge: { type: Number, required: true, default: 0 },
+    paymentMethod: { type: String, enum: ["Cash", "Card", "Online", "bKash"], default: "Cash" },
     orderStatus: { type: String, enum: ["Pending", "Shipped", "Delivered"], default: "Pending" },
   },
   { timestamps: true }

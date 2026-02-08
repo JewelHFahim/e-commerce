@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
 const AppError = require("../utils/AppError");
@@ -7,9 +8,9 @@ const { generateTrackingId } = require("../service/generateTrackingId");
 
 
 async function handleCreateOrder(req, res, next) {
+  const session = await mongoose.startSession();
   try {
     const userId = req.user?._id;
-
     const {
       shippingAddress,
       shippingCharge = 0,
@@ -17,79 +18,93 @@ async function handleCreateOrder(req, res, next) {
       paymentMethod = "Cash",
     } = req.body;
 
-    console.log(req.body);
-
+    // Validate inputs
+    if (shippingCharge < 0) {
+      throw new AppError("Shipping charge cannot be negative", 400);
+    }
     if (!userId) {
-      return next(new AppError("User ID is required.", 400));
+      throw new AppError("User ID is required.", 400);
     }
-
     if (!shippingAddress) {
-      return next(new AppError("Shipping address is required.", 400));
+      throw new AppError("Shipping address is required.", 400);
     }
 
-    const cart = await Cart.findOne({ user: userId }).populate(
-      "cartItems.product"
-    );
+    let createdOrder;
 
-    console.log(cart);
+    await session.withTransaction(async () => {
+      // Refresh cart within the transaction to ensure latest state
+      const cart = await Cart.findOne({ user: userId }).populate(
+        "cartItems.product"
+      ).session(session);
 
-    if (!cart || cart.cartItems.length === 0) {
-      return next(new AppError("Cart is empty", 400));
-    }
+      if (!cart || cart.cartItems.length === 0) {
+        throw new AppError("Cart is empty", 400);
+      }
 
-    const updatedOrderItems = [];
-    let totalCost = shippingCharge;
+      const updatedOrderItems = [];
+      let totalCost = Number(shippingCharge);
 
-    for (const item of cart.cartItems) {
-      const product = item.product;
+      for (const item of cart.cartItems) {
+        const product = item.product;
 
-      if (!product) {
-        return next(
-          new AppError(`Product not found for ID: ${item.product}`, 404)
+        if (!product) {
+          throw new AppError(`Product not found for ID: ${item.product}`, 404);
+        }
+
+        // Check stock
+        if (product.stockQuantity < item.quantity) {
+          throw new AppError(`Not enough stock for ${product.name}`, 400);
+        }
+
+        const totalPrice = item.quantity * product.discountPrice;
+        totalCost += totalPrice;
+
+        // Atomic update with check
+        const updatedProduct = await Product.findOneAndUpdate(
+          { _id: product._id, stockQuantity: { $gte: item.quantity } },
+          { $inc: { stockQuantity: -item.quantity } },
+          { new: true, session }
         );
+
+        if (!updatedProduct) {
+          throw new AppError(`Stock mismatch for ${product.name}. Please try again.`, 409);
+        }
+
+        updatedOrderItems.push({
+          product: product._id,
+          quantity: item.quantity,
+          size: item.size,
+          totalPrice,
+        });
       }
 
-      if (product.stockQuantity < item.quantity) {
-        return next(new AppError(`Not enough stock for ${product.name}`, 400));
-      }
+      const newOrder = await Order.create([{
+        isPaid,
+        totalCost,
+        user: userId,
+        paymentMethod,
+        shippingCharge,
+        shippingAddress,
+        trackingId: generateTrackingId(),
+        orderItems: updatedOrderItems,
+      }], { session });
 
-      const totalPrice = item.quantity * product.discountPrice;
-      totalCost += totalPrice;
+      await Cart.deleteOne({ user: userId }).session(session);
 
-      product.stockQuantity -= item.quantity;
-
-      await product.save();
-
-      updatedOrderItems.push({
-        product: product._id,
-        quantity: item.quantity,
-        size: item.size,
-        totalPrice,
-      });
-    }
-
-    const newOrder = await Order.create({
-      isPaid,
-      totalCost,
-      user: userId,
-      paymentMethod,
-      shippingCharge,
-      shippingAddress,
-      trackingId: generateTrackingId(),
-      orderItems: updatedOrderItems,
+      createdOrder = newOrder[0];
     });
 
-    await Cart.deleteOne({ user: userId });
-
+    // Send response only after transaction commits successfully
     res.status(201).json({
       status: true,
       message: "Order created successfully",
-      data: newOrder,
+      data: createdOrder,
     });
   } catch (error) {
     console.error("Failed to create order:", error);
-    // return next(errorHandler(error));
-    res.status(500).json({ status: false, message: "Somehting went wrong!" });
+    next(error);
+  } finally {
+    session.endSession();
   }
 }
 
